@@ -2,7 +2,7 @@
 
 **Predicting match outcomes and simulating the 2026 FIFA World Cup using machine learning.**
 
-Built by [Iyinoluwa Don-Taiwo](https://www.instagram.com/donlovesml_/) · McPherson University, Ogun State, Nigeria
+Built by [Iyinoluwa Don-Taiwo](https://www.instagram.com/donlovesml_/)
 
 ---
 
@@ -15,8 +15,6 @@ The accompanying Streamlit web app allows fully interactive predictions — incl
 ---
 
 ## Live Demo
-
-> Deploy to [Streamlit Community Cloud](https://share.streamlit.io) — free, one click from GitHub.
 
 ```bash
 streamlit run wc2026_app.py
