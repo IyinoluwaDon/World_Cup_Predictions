@@ -1,11 +1,20 @@
-streamlit
-pandas
+# Core ML & Data
 numpy
+pandas
 scikit-learn
 xgboost
 lightgbm
-matplotlib
-supabase
 scipy
-optuna
-joblib
+
+# Streamlit
+streamlit
+
+# Visualization
+matplotlib
+seaborn
+
+# Database
+supabase
+
+# Required by pandas >= 3.0 for StringDtype
+pyarrow
