@@ -1,13 +1,13 @@
 """
-FIFA World Cup 2026 — ML Prediction App (v4)
+FIFA World Cup 2026 — ML Prediction App
 =============================================
-Author  : Iyinoluwa Don-Taiwo · McPherson University
-Upgrades over v3:
-  - Poisson goals model → predicted scorelines (xG display)
-  - Historical accuracy tracker — model predictions vs actual results
-  - Head-to-head deep dive tab
-  - Supabase shared live results (carried from v3)
-  - v2 LR kept as primary predictor (best log-loss)
+Author  : Iyinoluwa Don-Taiwo · 
+
+Poisson goals model → predicted scorelines (xG display)
+Historical accuracy tracker — model predictions vs actual results
+Head-to-head deep dive tab
+Supabase shared live results 
+LR kept as primary predictor (best log-loss)
 """
 
 import warnings, pickle, random, time
@@ -175,6 +175,14 @@ def rows_to_dict(rows):
 # ─────────────────────────────────────────────────────────────
 # MODEL LOADING
 # ─────────────────────────────────────────────────────────────
+
+import subprocess, sys, os
+
+# Rebuild model if pkl is missing or was built on a different Python version
+if not os.path.exists("models/best_model_v4.pkl"):
+    st.info("Building model for first time — this takes 2-3 minutes...")
+    subprocess.run([sys.executable, "build_model.py"], check=True)
+
 @st.cache_resource
 def load_model():
     with open("models/best_model_v4.pkl","rb") as f:
