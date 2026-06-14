@@ -128,8 +128,15 @@ def get_imp(t):
 # or the "Secrets" panel on Streamlit Community Cloud). A fallback to the
 # original anon key is kept so the app keeps working even if secrets are not
 # configured yet — but you should move these into secrets and rotate the key.
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://rymznaqmclbrsybbghpz.supabase.co")
-SUPABASE_KEY = st.secrets.get(
+def get_secret(key, default):
+    """Read from st.secrets without crashing if no secrets.toml exists at all."""
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
+
+SUPABASE_URL = get_secret("SUPABASE_URL", "https://rymznaqmclbrsybbghpz.supabase.co")
+SUPABASE_KEY = get_secret(
     "SUPABASE_KEY",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
     ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5bXpuYXFtY2xicnN5YmJnaHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNTM0MDEsImV4cCI6MjA5NjgyOTQwMX0"
