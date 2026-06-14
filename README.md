@@ -27,13 +27,19 @@ streamlit run wc2026_app.py
 ## Project Structure
 
 ```
-wc2026-predictor/
+World_Cup_Predictions/
 │
-├── wc2026_app.py              # Streamlit web application (5 interactive tabs)
-├── wc2026_pipeline.py         # Full ML pipeline — EDA, features, training, simulation
-├── best_model.pkl             # Trained model + Elo state + feature matrix
-├── requirements.txt           # Python dependencies
-├── README.md                  # This file
+├── wc2026_app.py               # Streamlit web application (7 interactive tabs)
+├── requirements.txt            # Pinned Python dependencies
+├── packages.txt                # apt packages required on Streamlit Cloud (libgomp1)
+├── README.md                   # This file
+│
+├── .streamlit/
+│   ├── config.toml             # Theme + server settings
+│   └── secrets.toml.example    # Template for Supabase credentials
+│
+├── scripts/
+│   └── build_model.py          # Full ML pipeline — EDA, features, training, simulation
 │
 ├── data/
 │   ├── raw/
@@ -41,17 +47,23 @@ wc2026-predictor/
 │   │   └── fifa_ranking-2024-06-20.csv    # FIFA world rankings (cashncarry, Kaggle)
 │   └── processed/
 │       ├── master_matches.csv             # Merged, cleaned match dataset
-│       └── feature_matrix.csv            # Final feature matrix used for training
+│       └── feature_matrix.csv             # Final feature matrix used for training
 │
 ├── models/
-│   └── best_model.pkl                     # Saved model (also in root for deployment)
+│   └── best_model.pkl          # Trained model + Elo state + feature matrix (required at runtime)
 │
-└── outputs/
-    ├── eda_overview.png                   # EDA charts
-    ├── feature_importance.png             # Feature importance bar chart
-    ├── win_probabilities.png              # Full 48-team win probability chart
-    ├── top10_chart.png                    # Top 10 teams chart
-    └── simulation_results.csv            # Monte Carlo output table
+├── outputs/
+│   ├── eda_overview.png                   # EDA charts
+│   ├── feature_importance.png             # Feature importance bar chart
+│   ├── win_probabilities.png              # Full 48-team win probability chart
+│   ├── top10_chart.png                    # Top 10 teams chart
+│   └── simulation_results.csv            # Monte Carlo output table
+│
+├── notebooks/
+│   └── notebook.ipynb          # Original exploratory notebook
+│
+└── frontend/
+    └── wc2026_predictor.jsx    # Standalone React prototype (not used by the Streamlit app)
 ```
 
 ---
@@ -305,6 +317,10 @@ venv\Scripts\activate           # Windows
 # Install dependencies
 pip install -r requirements.txt
 
+# (Optional) configure Supabase credentials for the live-results feature
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+# then edit .streamlit/secrets.toml with your own Supabase URL/key
+
 # Run the app
 streamlit run wc2026_app.py
 ```
@@ -314,23 +330,79 @@ The app opens at `http://localhost:8501`
 To retrain the model from scratch:
 
 ```bash
-# Place master_matches.csv in data/processed/
-python wc2026_pipeline.py
+# data/processed/master_matches.csv is already included.
+python scripts/build_model.py
 ```
+
+This regenerates `models/best_model.pkl` and the charts in `outputs/`.
 
 ---
 
 ## Deploy to Streamlit Community Cloud
 
 ```
-1. Push wc2026_app.py, best_model.pkl, and requirements.txt to a GitHub repo
+1. Push the whole repo (including models/best_model.pkl, data/, requirements.txt, packages.txt) to GitHub
 2. Go to share.streamlit.io
 3. Sign in with GitHub
 4. New app → select your repo → set main file to wc2026_app.py
-5. Deploy
+5. (Optional) Settings → Secrets → paste SUPABASE_URL / SUPABASE_KEY from .streamlit/secrets.toml.example
+6. Deploy
 ```
 
-Free tier. No credit card. Deploys in under two minutes. The URL is shareable immediately.
+Free tier. No credit card. Deploys in a couple of minutes. The URL is shareable immediately.
+
+---
+
+## Troubleshooting: "Works locally, broken on the live (Streamlit Cloud) app"
+
+This project hit exactly that problem. The root causes — and the fixes now baked into this repo — were:
+
+1. **`packages.txt` was missing `libgomp1`.**
+   `models/best_model.pkl` contains pickled XGBoost and LightGBM objects (saved
+   for the model-comparison table), so `pickle.load()` needs those libraries
+   importable even though only the Logistic Regression model is used for
+   predictions. Both libraries link against OpenMP (`libgomp.so.1`), which is
+   present on most local machines but **not** on Streamlit Cloud's base image.
+   Without it, the import fails with `OSError: libgomp.so.1: cannot open
+   shared object file`. **Fix:** added `packages.txt` containing `libgomp1`.
+
+2. **`requirements.txt` had no version pins.**
+   The pickle was created with `numpy>=2` (it stores arrays using the
+   `numpy._core` module path that only exists in NumPy 2.x). With unpinned
+   requirements, `pip` can resolve an older NumPy 1.x (e.g. if an older
+   XGBoost/LightGBM release caps `numpy<2`), and `pickle.load()` then fails
+   with `ModuleNotFoundError: No module named 'numpy._core'`. Locally this
+   didn't show up because the dev environment already had matching versions
+   installed. **Fix:** pinned `numpy`, `pandas`, `scikit-learn`, `scipy`,
+   `matplotlib`, and `seaborn` to the exact versions used to train the model,
+   and gave `xgboost`/`lightgbm` floors that are NumPy-2 compatible.
+
+3. **Hardcoded Supabase credentials with no failure handling.**
+   If the Supabase project becomes unreachable (network restrictions, paused
+   project, rotated key), `create_client()` or the first query could raise an
+   uncaught exception and crash the entire app on Cloud. **Fix:** credentials
+   now come from `st.secrets` (with the original key kept only as a fallback
+   so nothing breaks immediately — but you should rotate it, see
+   `.streamlit/secrets.toml.example`), and every Supabase call is wrapped so
+   the rest of the app (predictions, simulations, etc.) keeps working even if
+   the database is down.
+
+4. **Runtime "rebuild the model if missing" via `subprocess`.**
+   The old app called `python build_model.py` from inside `wc2026_app.py` if
+   the pickle wasn't found. That pipeline takes minutes and a lot of memory —
+   on Streamlit Cloud's free tier this can exceed the startup time/memory
+   limit and the app never comes up. **Fix:** the app now fails fast with a
+   clear error message if `models/best_model.pkl` is missing, and the model
+   is always trained offline via `scripts/build_model.py` and committed.
+
+5. **Two unused duplicate model files (`best_model_v2.pkl`, an older
+   `best_model.pkl`) were tracked in git**, adding ~23 MB of dead weight to
+   every clone/deploy. **Fix:** removed; only the model actually loaded by
+   the app (`models/best_model.pkl`, the former `best_model_v4.pkl`) is kept.
+
+If you retrain the model on a machine with different package versions,
+re-pin `requirements.txt` to match — that's the #1 cause of "pickle loads
+fine here, breaks there".
 
 ---
 

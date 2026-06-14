@@ -124,19 +124,36 @@ def get_imp(t):
 # ─────────────────────────────────────────────────────────────
 # SUPABASE
 # ─────────────────────────────────────────────────────────────
-SUPABASE_URL = "https://rymznaqmclbrsybbghpz.supabase.co"
-SUPABASE_KEY = (
+# Credentials are read from Streamlit secrets (.streamlit/secrets.toml locally,
+# or the "Secrets" panel on Streamlit Community Cloud). A fallback to the
+# original anon key is kept so the app keeps working even if secrets are not
+# configured yet — but you should move these into secrets and rotate the key.
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://rymznaqmclbrsybbghpz.supabase.co")
+SUPABASE_KEY = st.secrets.get(
+    "SUPABASE_KEY",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
     ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5bXpuYXFtY2xicnN5YmJnaHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNTM0MDEsImV4cCI6MjA5NjgyOTQwMX0"
-    ".mRlvkoKx0x2WB-1WPdA8JsXeDCeidI2metUzmPfsCcM"
+    ".mRlvkoKx0x2WB-1WPdA8JsXeDCeidI2metUzmPfsCcM",
 )
 
 @st.cache_resource
 def get_supabase():
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    """Return a Supabase client, or None if it can't be created.
+
+    Creating the client (or any later call) must never crash the whole app —
+    a deployment where the database is unreachable should still show
+    predictions and simulations, just with live-results features disabled.
+    """
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        st.warning(f"Database unavailable: {e}")
+        return None
+
 supabase = get_supabase()
 
 def fetch_live_results():
+    if supabase is None: return []
     try:
         res = supabase.table("live_results").select("*").order("entered_at").execute()
         return res.data or []
@@ -144,6 +161,8 @@ def fetch_live_results():
         st.warning(f"Database unreachable: {e}"); return []
 
 def insert_result(home,away,hs,as_):
+    if supabase is None:
+        st.error("Database unavailable — live results cannot be saved right now."); return False
     try:
         supabase.table("live_results").insert({
             "home_team":home,"away_team":away,
@@ -153,12 +172,14 @@ def insert_result(home,away,hs,as_):
         st.error(f"Save failed: {e}"); return False
 
 def delete_one(rid):
+    if supabase is None: return False
     try:
         supabase.table("live_results").delete().eq("id",rid).execute(); return True
     except Exception as e:
         st.error(f"Delete failed: {e}"); return False
 
 def clear_all():
+    if supabase is None: return False
     try:
         supabase.table("live_results").delete().neq("id",0).execute(); return True
     except Exception as e:
@@ -175,21 +196,40 @@ def rows_to_dict(rows):
 # ─────────────────────────────────────────────────────────────
 # MODEL LOADING
 # ─────────────────────────────────────────────────────────────
+from pathlib import Path
 
-import subprocess, sys, os
+BASE_DIR   = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "models" / "best_model.pkl"
 
-# Rebuild model if pkl is missing or was built on a different Python version
-if not os.path.exists("models/best_model_v4.pkl"):
-    st.info("Building model for first time — this takes 2-3 minutes...")
-    subprocess.run([sys.executable, "build_model.py"], check=True)
+if not MODEL_PATH.exists():
+    st.error(
+        f"Model file not found at `{MODEL_PATH}`.\n\n"
+        "Run `python scripts/build_model.py` locally to generate it, then "
+        "make sure `models/best_model.pkl` is committed to the repo (it's "
+        "required at runtime — it is NOT rebuilt automatically on Streamlit "
+        "Community Cloud, since that pipeline takes several minutes and "
+        "exceeds the free tier's startup time/memory limits)."
+    )
+    st.stop()
 
 @st.cache_resource
 def load_model():
-    with open("models/best_model_v4.pkl","rb") as f:
+    with open(MODEL_PATH, "rb") as f:
         return pickle.load(f)
 
-saved        = load_model()
-model        = saved["model"]           # v2 LR — best log-loss
+try:
+    saved = load_model()
+except Exception as e:
+    st.error(
+        f"Could not load `{MODEL_PATH.name}`: {e}\n\n"
+        "This usually means the package versions installed here don't match "
+        "the versions used to train the model (numpy/pandas/scikit-learn/"
+        "xgboost/lightgbm). Check that `requirements.txt` is pinned to the "
+        "same versions used in `scripts/build_model.py`."
+    )
+    st.stop()
+
+model        = saved["model"]           # LR — best log-loss
 poisson_home = saved["poisson_home"]
 poisson_away = saved["poisson_away"]
 PFEATS       = saved["poisson_feats"]
