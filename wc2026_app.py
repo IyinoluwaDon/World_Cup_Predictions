@@ -247,7 +247,7 @@ model        = saved["model"]           # LR — best log-loss
 poisson_home = saved["poisson_home"]
 poisson_away = saved["poisson_away"]
 PFEATS       = saved["poisson_feats"]
-poisson_scaler = saved["poisson_scaler"]
+
 FEATURES     = saved["features"]
 base_df      = saved["df"].copy()
 base_df["date"] = pd.to_datetime(base_df["date"])
@@ -411,9 +411,8 @@ def predict_match(home,away,neutral=True):
 def predict_scoreline(home,away,neutral=True):
     """Poisson model: returns (lambda_home, lambda_away, score_matrix_df)."""
     row=pd.DataFrame([build_row(home,away,neutral)])
-    row_scaled=poisson_scaler.transform(row[PFEATS])
-    lh=max(0.1,float(poisson_home.predict(row_scaled)[0]))
-    la=max(0.1,float(poisson_away.predict(row_scaled)[0]))
+    lh = max(0.1, float(poisson_home.predict(row[PFEATS])[0]))
+    la = max(0.1, float(poisson_away.predict(row[PFEATS])[0]))
     # Score probability matrix (0-5 goals each)
     mg=6
     scores={}
