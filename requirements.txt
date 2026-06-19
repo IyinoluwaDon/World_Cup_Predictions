@@ -1,0 +1,28 @@
+# ── Core ML & Data ───────────────────────────────────────────
+# Pinned to the versions the model in models/best_model.pkl was trained
+# and pickled with. If you retrain the model with `scripts/build_model.py`,
+# update these pins to match your new environment.
+numpy==2.4.4
+pandas==3.0.2
+scipy==1.17.1
+scikit-learn==1.8.0
+
+# Gradient boosting models used during training/comparison. Their pickled
+# objects are loaded from best_model.pkl even though the deployed app only
+# *predicts* with the Logistic Regression model — these imports must stay
+# available and numpy>=2-compatible (>=2.1 / >=4.3) or pickle.load() fails.
+xgboost>=2.1
+lightgbm>=4.3
+
+# ── Streamlit ────────────────────────────────────────────────
+streamlit>=1.38
+
+# ── Visualization ────────────────────────────────────────────
+matplotlib==3.10.8
+seaborn==0.13.2
+
+# ── Database (Supabase live results) ────────────────────────
+supabase>=2.6
+
+# ── Required by pandas >= 3.0 for StringDtype / Arrow-backed columns ─
+pyarrow>=16

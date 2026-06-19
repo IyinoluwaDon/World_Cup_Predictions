@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Streamlit secrets — never commit real credentials
+.streamlit/secrets.toml
+
+# OS / editor
+.DS_Store
+.vscode/
+.ipynb_checkpoints/
+
+# Large/intermediate artifacts you don't want tracked if regenerated
+# (model + data + outputs ARE committed deliberately for this project,
+# so they're not ignored here — uncomment if you switch to retraining
+# on every deploy instead of shipping the .pkl)
+# models/*.pkl
