@@ -29,6 +29,8 @@ warnings.filterwarnings("ignore")
 st.set_page_config(page_title="WC 2026 Predictor", page_icon="🏆",
                    layout="wide", initial_sidebar_state="expanded")
 
+st.caption("Historical WC 2026 modeling experiment. Saved model/data snapshots are not live tournament coverage or verified betting probabilities.")
+
 st.markdown("""
 <style>
 .stApp{background:#0a0a12}
