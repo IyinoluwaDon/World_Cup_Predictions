@@ -134,23 +134,19 @@ def get_imp(t):
 # SUPABASE
 # ─────────────────────────────────────────────────────────────
 # Credentials are read from Streamlit secrets (.streamlit/secrets.toml locally,
-# or the "Secrets" panel on Streamlit Community Cloud). A fallback to the
-# original anon key is kept so the app keeps working even if secrets are not
-# configured yet — but you should move these into secrets and rotate the key.
-def get_secret(key, default):
+# or the "Secrets" panel on Streamlit Community Cloud). Live-results features
+# remain disabled until both values are configured.
+def get_secret(key, default=None):
     """Read from st.secrets without crashing if no secrets.toml exists at all."""
     try:
+        if key == "SUPABASE_KEY":
+            return st.secrets.get(key)
         return st.secrets.get(key, default)
     except Exception:
-        return default
+        return None if key == "SUPABASE_KEY" else default
 
-SUPABASE_URL = get_secret("SUPABASE_URL", "https://rymznaqmclbrsybbghpz.supabase.co")
-SUPABASE_KEY = get_secret(
-    "SUPABASE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5bXpuYXFtY2xicnN5YmJnaHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNTM0MDEsImV4cCI6MjA5NjgyOTQwMX0"
-    ".mRlvkoKx0x2WB-1WPdA8JsXeDCeidI2metUzmPfsCcM",
-)
+SUPABASE_URL = get_secret("SUPABASE_URL")
+SUPABASE_KEY = get_secret("SUPABASE_KEY")
 
 @st.cache_resource
 def get_supabase():
@@ -160,6 +156,8 @@ def get_supabase():
     a deployment where the database is unreachable should still show
     predictions and simulations, just with live-results features disabled.
     """
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
     try:
         return create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception as e:
@@ -167,6 +165,8 @@ def get_supabase():
         return None
 
 supabase = get_supabase()
+if supabase is None:
+    st.info("Live results are disabled. Configure SUPABASE_URL and SUPABASE_KEY in Streamlit secrets to enable them.")
 
 def fetch_live_results():
     if supabase is None: return []
@@ -221,7 +221,7 @@ if not MODEL_PATH.exists():
     st.error(
         f"Model file not found at `{MODEL_PATH}`.\n\n"
         "Run `python scripts/build_model.py` locally to generate it, then "
-        "make sure `models/best_model.pkl` is committed to the repo (it's "
+        f"make sure `{MODEL_PATH.relative_to(BASE_DIR)}` is committed to the repo (it's "
         "required at runtime — it is NOT rebuilt automatically on Streamlit "
         "Community Cloud, since that pipeline takes several minutes and "
         "exceeds the free tier's startup time/memory limits)."
@@ -990,6 +990,3 @@ with tab7:
             if clear_all():
                 st.session_state.live_rows=[]; st.session_state.last_fetch=time.time()
                 st.session_state.active_model=model; st.session_state.sim_cache=None; st.rerun()
-
-
-
